@@ -3,7 +3,7 @@ Files Pipeline
 
 See documentation in topics/media-pipeline.rst
 """
-
+import functools
 import hashlib
 import os
 import os.path
@@ -58,7 +58,7 @@ class FSFilesStore(object):
         absolute_path = self._get_filesystem_path(path)
         try:
             last_modified = os.path.getmtime(absolute_path)
-        except:  # FIXME: catching everything!
+        except os.error:
             return {}
 
         with open(absolute_path, 'rb') as f:
@@ -214,11 +214,14 @@ class FilesPipeline(MediaPipeline):
     """
 
     MEDIA_NAME = "file"
+    EXPIRES = 90
     STORE_SCHEMES = {
         '': FSFilesStore,
         'file': FSFilesStore,
         's3': S3FilesStore,
     }
+    DEFAULT_FILES_URLS_FIELD = 'file_urls'
+    DEFAULT_FILES_RESULT_FIELD = 'files'
 
     def __init__(self, store_uri, download_func=None, settings=None):
         if not store_uri:
@@ -226,13 +229,27 @@ class FilesPipeline(MediaPipeline):
         
         if isinstance(settings, dict) or settings is None:
             settings = Settings(settings)
-        
-        self.store = self._get_store(store_uri)
-        self.expires = settings.getint('FILES_EXPIRES')
-        self.files_urls_field = settings.get('FILES_URLS_FIELD')
-        self.files_result_field = settings.get('FILES_RESULT_FIELD')
 
-        super(FilesPipeline, self).__init__(download_func=download_func)
+        cls_name = "FilesPipeline"
+        self.store = self._get_store(store_uri)
+        resolve = functools.partial(self._key_for_pipe,
+                                    base_class_name=cls_name,
+                                    settings=settings)
+        self.expires = settings.getint(
+            resolve('FILES_EXPIRES'), self.EXPIRES
+        )
+        if not hasattr(self, "FILES_URLS_FIELD"):
+            self.FILES_URLS_FIELD = self.DEFAULT_FILES_URLS_FIELD
+        if not hasattr(self, "FILES_RESULT_FIELD"):
+            self.FILES_RESULT_FIELD = self.DEFAULT_FILES_RESULT_FIELD
+        self.files_urls_field = settings.get(
+            resolve('FILES_URLS_FIELD'), self.FILES_URLS_FIELD
+        )
+        self.files_result_field = settings.get(
+            resolve('FILES_RESULT_FIELD'), self.FILES_RESULT_FIELD
+        )
+
+        super(FilesPipeline, self).__init__(download_func=download_func, settings=settings)
 
     @classmethod
     def from_settings(cls, settings):

@@ -1,6 +1,7 @@
 from __future__ import print_function
 import os
 import gzip
+import logging
 from six.moves import cPickle as pickle
 from importlib import import_module
 from time import time
@@ -12,7 +13,10 @@ from scrapy.responsetypes import responsetypes
 from scrapy.utils.request import request_fingerprint
 from scrapy.utils.project import data_path
 from scrapy.utils.httpobj import urlparse_cached
-from scrapy.utils.python import to_bytes, to_unicode
+from scrapy.utils.python import to_bytes, to_unicode, garbage_collect
+
+
+logger = logging.getLogger(__name__)
 
 
 class DummyPolicy(object):
@@ -220,6 +224,8 @@ class DbmCacheStorage(object):
         dbpath = os.path.join(self.cachedir, '%s.db' % spider.name)
         self.db = self.dbmodule.open(dbpath, 'c')
 
+        logger.debug("Using DBM cache storage in %(cachepath)s" % {'cachepath': dbpath}, extra={'spider': spider})
+
     def close_spider(self, spider):
         self.db.close()
 
@@ -272,7 +278,8 @@ class FilesystemCacheStorage(object):
         self._open = gzip.open if self.use_gzip else open
 
     def open_spider(self, spider):
-        pass
+        logger.debug("Using filesystem cache storage in %(cachedir)s" % {'cachedir': self.cachedir},
+                     extra={'spider': spider})
 
     def close_spider(self, spider):
         pass
@@ -348,11 +355,14 @@ class LeveldbCacheStorage(object):
         dbpath = os.path.join(self.cachedir, '%s.leveldb' % spider.name)
         self.db = self._leveldb.LevelDB(dbpath)
 
+        logger.debug("Using LevelDB cache storage in %(cachepath)s" % {'cachepath': dbpath}, extra={'spider': spider})
+
     def close_spider(self, spider):
         # Do compactation each time to save space and also recreate files to
         # avoid them being removed in storages with timestamp-based autoremoval.
         self.db.CompactRange()
         del self.db
+        garbage_collect()
 
     def retrieve_response(self, spider, request):
         data = self._read_data(spider, request)

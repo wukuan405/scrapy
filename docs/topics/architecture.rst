@@ -12,24 +12,77 @@ Overview
 
 The following diagram shows an overview of the Scrapy architecture with its
 components and an outline of the data flow that takes place inside the system
-(shown by the green arrows). A brief description of the components is included
+(shown by the red arrows). A brief description of the components is included
 below with links for more detailed information about them. The data flow is
 also described below.
 
-.. image:: _images/scrapy_architecture.png
+.. _data-flow:
+
+Data flow
+=========
+
+.. image:: _images/scrapy_architecture_02.png
    :width: 700
-   :height: 494
+   :height: 470
    :alt: Scrapy architecture
+
+The data flow in Scrapy is controlled by the execution engine, and goes like
+this:
+
+1. The :ref:`Engine <component-engine>` gets the initial Requests to crawl from the
+   :ref:`Spider <component-spiders>`.
+
+2. The :ref:`Engine <component-engine>` schedules the Requests in the
+   :ref:`Scheduler <component-scheduler>` and asks for the
+   next Requests to crawl.
+
+3. The :ref:`Scheduler <component-scheduler>` returns the next Requests
+   to the :ref:`Engine <component-engine>`.
+
+4. The :ref:`Engine <component-engine>` sends the Requests to the
+   :ref:`Downloader <component-downloader>`, passing through the
+   :ref:`Downloader Middlewares <component-downloader-middleware>` (see
+   :meth:`~scrapy.downloadermiddlewares.DownloaderMiddleware.process_request`).
+
+5. Once the page finishes downloading the
+   :ref:`Downloader <component-downloader>` generates a Response (with
+   that page) and sends it to the Engine, passing through the
+   :ref:`Downloader Middlewares <component-downloader-middleware>` (see
+   :meth:`~scrapy.downloadermiddlewares.DownloaderMiddleware.process_response`).
+
+6. The :ref:`Engine <component-engine>` receives the Response from the
+   :ref:`Downloader <component-downloader>` and sends it to the
+   :ref:`Spider <component-spiders>` for processing, passing
+   through the :ref:`Spider Middleware <component-spider-middleware>` (see
+   :meth:`~scrapy.spidermiddlewares.SpiderMiddleware.process_spider_input`).
+
+7. The :ref:`Spider <component-spiders>` processes the Response and returns
+   scraped items and new Requests (to follow) to the
+   :ref:`Engine <component-engine>`, passing through the
+   :ref:`Spider Middleware <component-spider-middleware>` (see
+   :meth:`~scrapy.spidermiddlewares.SpiderMiddleware.process_spider_output`).
+
+8. The :ref:`Engine <component-engine>` sends processed items to
+   :ref:`Item Pipelines <component-pipelines>`, then send processed Requests to
+   the :ref:`Scheduler <component-scheduler>` and asks for possible next Requests
+   to crawl.
+
+9. The process repeats (from step 1) until there are no more requests from the
+   :ref:`Scheduler <component-scheduler>`.
 
 Components
 ==========
+
+.. _component-engine:
 
 Scrapy Engine
 -------------
 
 The engine is responsible for controlling the data flow between all components
-of the system, and triggering events when certain actions occur. See the Data
-Flow section below for more details.
+of the system, and triggering events when certain actions occur. See the
+:ref:`Data Flow <data-flow>` section above for more details.
+
+.. _component-scheduler:
 
 Scheduler
 ---------
@@ -37,18 +90,24 @@ Scheduler
 The Scheduler receives requests from the engine and enqueues them for feeding
 them later (also to the engine) when the engine requests them.
 
+.. _component-downloader:
+
 Downloader
 ----------
 
 The Downloader is responsible for fetching web pages and feeding them to the
 engine which, in turn, feeds them to the spiders.
 
+.. _component-spiders:
+
 Spiders
 -------
 
 Spiders are custom classes written by Scrapy users to parse responses and
-extract items (aka scraped items) from them or additional URLs (requests) to
+extract items (aka scraped items) from them or additional requests to
 follow. For more information see :ref:`topics-spiders`.
+
+.. _component-pipelines:
 
 Item Pipeline
 -------------
@@ -57,6 +116,8 @@ The Item Pipeline is responsible for processing the items once they have been
 extracted (or scraped) by the spiders. Typical tasks include cleansing,
 validation and persistence (like storing the item in a database). For more
 information see :ref:`topics-item-pipeline`.
+
+.. _component-downloader-middleware:
 
 Downloader middlewares
 ----------------------
@@ -76,6 +137,8 @@ Use a Downloader middleware if you need to do one of the following:
 
 For more information see :ref:`topics-downloader-middleware`.
 
+.. _component-spider-middleware:
+
 Spider middlewares
 ------------------
 
@@ -92,38 +155,6 @@ Use a Spider middleware if you need to
   content.
 
 For more information see :ref:`topics-spider-middleware`.
-
-Data flow
-=========
-
-The data flow in Scrapy is controlled by the execution engine, and goes like
-this:
-
-1. The Engine gets the first URLs to crawl from the Spider and schedules them
-   in the Scheduler, as Requests.
-
-2. The Engine asks the Scheduler for the next URLs to crawl.
-
-3. The Scheduler returns the next URLs to crawl to the Engine and the Engine
-   sends them to the Downloader, passing through the Downloader Middleware
-   (request direction).
-
-4. Once the page finishes downloading the Downloader generates a Response (with
-   that page) and sends it to the Engine, passing through the Downloader
-   Middleware (response direction).
-
-5. The Engine receives the Response from the Downloader and sends it to the
-   Spider for processing, passing through the Spider Middleware (input direction).
-
-6. The Spider processes the Response and returns scraped items and new Requests
-   (to follow) to the Engine.
-
-7. The Engine passes scraped items and new Requests returned by a spider
-   through Spider Middleware (output direction), and then sends processed
-   items to Item Pipelines and processed Requests to the Scheduler.
-
-8. The process repeats (from step 1) until there are no more requests from the
-   Scheduler.
 
 Event-driven networking
 =======================
@@ -143,4 +174,3 @@ links:
 .. _Introduction to Deferreds in Twisted: https://twistedmatrix.com/documents/current/core/howto/defer-intro.html
 .. _Twisted - hello, asynchronous programming: http://jessenoller.com/2009/02/11/twisted-hello-asynchronous-programming/
 .. _Twisted Introduction - Krondo: http://krondo.com/an-introduction-to-asynchronous-programming-and-twisted/
-

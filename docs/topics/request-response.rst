@@ -24,7 +24,7 @@ below in :ref:`topics-request-response-ref-request-subclasses` and
 Request objects
 ===============
 
-.. class:: Request(url[, callback, method='GET', headers, body, cookies, meta, encoding='utf-8', priority=0, dont_filter=False, errback])
+.. class:: Request(url[, callback, method='GET', headers, body, cookies, meta, encoding='utf-8', priority=0, dont_filter=False, errback, flags])
 
     A :class:`Request` object represents an HTTP request, which is usually
     generated in the Spider and executed by the Downloader, and thus generating
@@ -117,7 +117,12 @@ Request objects
        raised while processing the request. This includes pages that failed
        with 404 HTTP errors and such. It receives a `Twisted Failure`_ instance
        as first parameter.
+       For more information,
+       see :ref:`topics-request-response-ref-errbacks` below.
     :type errback: callable
+
+    :param flags:  Flags sent to the request, can be used for logging or similar purposes.
+    :type flags: list
 
     .. attribute:: Request.url
 
@@ -205,12 +210,75 @@ different fields from different pages::
         request = scrapy.Request("http://www.example.com/some_page.html",
                                  callback=self.parse_page2)
         request.meta['item'] = item
-        return request
+        yield request
 
     def parse_page2(self, response):
         item = response.meta['item']
         item['other_url'] = response.url
-        return item
+        yield item
+
+
+.. _topics-request-response-ref-errbacks:
+
+Using errbacks to catch exceptions in request processing
+--------------------------------------------------------
+
+The errback of a request is a function that will be called when an exception
+is raise while processing it.
+
+It receives a `Twisted Failure`_ instance as first parameter and can be
+used to track connection establishment timeouts, DNS errors etc.
+
+Here's an example spider logging all errors and catching some specific
+errors if needed::
+
+    import scrapy
+
+    from scrapy.spidermiddlewares.httperror import HttpError
+    from twisted.internet.error import DNSLookupError
+    from twisted.internet.error import TimeoutError, TCPTimedOutError
+
+    class ErrbackSpider(scrapy.Spider):
+        name = "errback_example"
+        start_urls = [
+            "http://www.httpbin.org/",              # HTTP 200 expected
+            "http://www.httpbin.org/status/404",    # Not found error
+            "http://www.httpbin.org/status/500",    # server issue
+            "http://www.httpbin.org:12345/",        # non-responding host, timeout expected
+            "http://www.httphttpbinbin.org/",       # DNS error expected
+        ]
+
+        def start_requests(self):
+            for u in self.start_urls:
+                yield scrapy.Request(u, callback=self.parse_httpbin,
+                                        errback=self.errback_httpbin,
+                                        dont_filter=True)
+
+        def parse_httpbin(self, response):
+            self.logger.info('Got successful response from {}'.format(response.url))
+            # do something useful here...
+
+        def errback_httpbin(self, failure):
+            # log all failures
+            self.logger.error(repr(failure))
+
+            # in case you want to do something special for some errors,
+            # you may need the failure's type:
+
+            if failure.check(HttpError):
+                # these exceptions come from HttpError spider middleware
+                # you can get the non-200 response
+                response = failure.value.response
+                self.logger.error('HttpError on %s', response.url)
+
+            elif failure.check(DNSLookupError):
+                # this is the original request
+                request = failure.request
+                self.logger.error('DNSLookupError on %s', request.url)
+
+            elif failure.check(TimeoutError, TCPTimedOutError):
+                request = failure.request
+                self.logger.error('TimeoutError on %s', request.url)
 
 .. _topics-request-meta:
 
@@ -234,7 +302,13 @@ Those are:
 * :reqmeta:`dont_obey_robotstxt`
 * :reqmeta:`download_timeout`
 * :reqmeta:`download_maxsize`
+* :reqmeta:`download_latency`
+* :reqmeta:`download_fail_on_dataloss`
 * :reqmeta:`proxy`
+* ``ftp_user`` (See :setting:`FTP_USER` for more info)
+* ``ftp_password`` (See :setting:`FTP_PASSWORD` for more info)
+* :reqmeta:`referrer_policy`
+* :reqmeta:`max_retry_times`
 
 .. reqmeta:: bindaddress
 
@@ -251,6 +325,32 @@ download_timeout
 The amount of time (in secs) that the downloader will wait before timing out.
 See also: :setting:`DOWNLOAD_TIMEOUT`.
 
+.. reqmeta:: download_latency
+
+download_latency
+----------------
+
+The amount of time spent to fetch the response, since the request has been
+started, i.e. HTTP message sent over the network. This meta key only becomes
+available when the response has been downloaded. While most other meta keys are
+used to control Scrapy behavior, this one is supposed to be read-only.
+
+.. reqmeta:: download_fail_on_dataloss
+
+download_fail_on_dataloss
+-------------------------
+
+Whether or not to fail on broken responses. See:
+:setting:`DOWNLOAD_FAIL_ON_DATALOSS`.
+
+.. reqmeta:: max_retry_times
+
+max_retry_times
+---------------
+
+The meta key is used set retry times per request. When initialized, the
+:reqmeta:`max_retry_times` meta key takes higher precedence over the
+:setting:`RETRY_TIMES` setting.
 
 .. _topics-request-response-ref-request-subclasses:
 
@@ -283,7 +383,7 @@ fields with form data from :class:`Response` objects.
     The :class:`FormRequest` objects support the following class method in
     addition to the standard :class:`Request` methods:
 
-    .. classmethod:: FormRequest.from_response(response, [formname=None, formnumber=0, formdata=None, formxpath=None, formcss=None, clickdata=None, dont_click=False, ...])
+    .. classmethod:: FormRequest.from_response(response, [formname=None, formid=None, formnumber=0, formdata=None, formxpath=None, formcss=None, clickdata=None, dont_click=False, ...])
 
        Returns a new :class:`FormRequest` object with its form field values
        pre-populated with those found in the HTML ``<form>`` element contained
@@ -301,12 +401,19 @@ fields with form data from :class:`Response` objects.
        control clicked (instead of disabling it) you can also use the
        ``clickdata`` argument.
 
+       .. caution:: Using this method with select elements which have leading
+          or trailing whitespace in the option values will not work due to a
+          `bug in lxml`_, which should be fixed in lxml 3.8 and above.
+
        :param response: the response containing a HTML form which will be used
           to pre-populate the form fields
        :type response: :class:`Response` object
 
        :param formname: if given, the form with name attribute set to this value will be used.
        :type formname: string
+
+       :param formid: if given, the form with id attribute set to this value will be used.
+       :type formid: string
 
        :param formxpath: if given, the first form that matches the xpath will be used.
        :type formxpath: string
@@ -320,7 +427,9 @@ fields with form data from :class:`Response` objects.
 
        :param formdata: fields to override in the form data. If a field was
           already present in the response ``<form>`` element, its value is
-          overridden by the one passed in this parameter.
+          overridden by the one passed in this parameter. If a value passed in
+          this parameter is ``None``, the field will not be included in the
+          request, even if it was present in the response ``<form>`` element.
        :type formdata: dict
 
        :param clickdata: attributes to lookup the control clicked. If it's not
@@ -345,6 +454,9 @@ fields with form data from :class:`Response` objects.
 
        .. versionadded:: 1.1.0
           The ``formcss`` parameter.
+
+       .. versionadded:: 1.1.0
+          The ``formid`` parameter.
 
 Request usage examples
 ----------------------
@@ -398,7 +510,7 @@ method for this job. Here's an example spider which uses it::
 Response objects
 ================
 
-.. class:: Response(url, [status=200, headers, body, flags])
+.. class:: Response(url, [status=200, headers=None, body=b'', flags=None, request=None])
 
     A :class:`Response` object represents an HTTP response, which is usually
     downloaded (by the Downloader) and fed to the Spiders for processing.
@@ -406,12 +518,12 @@ Response objects
     :param url: the URL of this response
     :type url: string
 
+    :param status: the HTTP status of the response. Defaults to ``200``.
+    :type status: integer
+
     :param headers: the headers of this response. The dict values can be strings
        (for single valued headers) or lists (for multi-valued headers).
     :type headers: dict
-
-    :param status: the HTTP status of the response. Defaults to ``200``.
-    :type status: integer
 
     :param body: the response body. It must be str, not unicode, unless you're
        using a encoding-aware :ref:`Response subclass
@@ -419,14 +531,14 @@ Response objects
        :class:`TextResponse`.
     :type body: str
 
-    :param meta: the initial values for the :attr:`Response.meta` attribute. If
-       given, the dict will be shallow copied.
-    :type meta: dict
-
     :param flags: is a list containing the initial values for the
        :attr:`Response.flags` attribute. If given, the list will be shallow
        copied.
     :type flags: list
+
+    :param request: the initial value of the :attr:`Response.request` attribute.
+        This represents the :class:`Request` that generated this response.
+    :type request: :class:`Request` object
 
     .. attribute:: Response.url
 
@@ -442,7 +554,13 @@ Response objects
 
     .. attribute:: Response.headers
 
-        A dictionary-like object which contains the response headers.
+        A dictionary-like object which contains the response headers. Values can
+        be accessed using :meth:`get` to return the first header value with the
+        specified name or :meth:`getlist` to return all header values with the
+        specified name. For example, this call will give you all cookies in the
+        headers::
+
+            response.headers.getlist('Set-Cookie')
 
     .. attribute:: Response.body
 
@@ -509,6 +627,9 @@ Response objects
         making this call::
 
             urlparse.urljoin(response.url, url)
+
+    .. automethod:: Response.follow
+
 
 .. _urlparse.urljoin: https://docs.python.org/2/library/urlparse.html#urlparse.urljoin
 
@@ -596,6 +717,8 @@ TextResponse objects
 
             response.css('p')
 
+    .. automethod:: TextResponse.follow
+
     .. method:: TextResponse.body_as_unicode()
 
         The same as :attr:`text`, but available as a method. This method is
@@ -623,3 +746,4 @@ XmlResponse objects
     line.  See :attr:`TextResponse.encoding`.
 
 .. _Twisted Failure: https://twistedmatrix.com/documents/current/api/twisted.python.failure.Failure.html
+.. _bug in lxml: https://bugs.launchpad.net/lxml/+bug/1665241

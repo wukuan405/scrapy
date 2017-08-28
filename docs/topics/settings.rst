@@ -178,15 +178,6 @@ Default: ``None``
 The AWS secret key used by code that requires access to `Amazon Web services`_,
 such as the :ref:`S3 feed storage backend <topics-feed-storage-s3>`.
 
-.. setting:: FEED_TEMPDIR
-
-FEED_TEMPDIR
-------------
-
-The Feed Temp dir allows you to set a custom folder to save crawler
-temporary files before uploading with :ref:`FTP feed storage <topics-feed-storage-ftp>` and
-:ref:`Amazon S3 <topics-feed-storage-s3>`.
-
 .. setting:: BOT_NAME
 
 BOT_NAME
@@ -468,16 +459,15 @@ Default::
         'scrapy.downloadermiddlewares.robotstxt.RobotsTxtMiddleware': 100,
         'scrapy.downloadermiddlewares.httpauth.HttpAuthMiddleware': 300,
         'scrapy.downloadermiddlewares.downloadtimeout.DownloadTimeoutMiddleware': 350,
-        'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': 400,
-        'scrapy.downloadermiddlewares.retry.RetryMiddleware': 500,
-        'scrapy.downloadermiddlewares.defaultheaders.DefaultHeadersMiddleware': 550,
+        'scrapy.downloadermiddlewares.defaultheaders.DefaultHeadersMiddleware': 400,
+        'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': 500,
+        'scrapy.downloadermiddlewares.retry.RetryMiddleware': 550,
         'scrapy.downloadermiddlewares.ajaxcrawl.AjaxCrawlMiddleware': 560,
         'scrapy.downloadermiddlewares.redirect.MetaRefreshMiddleware': 580,
         'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware': 590,
         'scrapy.downloadermiddlewares.redirect.RedirectMiddleware': 600,
         'scrapy.downloadermiddlewares.cookies.CookiesMiddleware': 700,
         'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware': 750,
-        'scrapy.downloadermiddlewares.chunked.ChunkedTransferMiddleware': 830,
         'scrapy.downloadermiddlewares.stats.DownloaderStats': 850,
         'scrapy.downloadermiddlewares.httpcache.HttpCacheMiddleware': 900,
     }
@@ -513,8 +503,7 @@ supported.  Example::
 
 This setting is also affected by the :setting:`RANDOMIZE_DOWNLOAD_DELAY`
 setting (which is enabled by default). By default, Scrapy doesn't wait a fixed
-amount of time between requests, but uses a random interval between 0.5 and 1.5
-* :setting:`DOWNLOAD_DELAY`.
+amount of time between requests, but uses a random interval between 0.5 * :setting:`DOWNLOAD_DELAY` and 1.5 * :setting:`DOWNLOAD_DELAY`.
 
 When :setting:`CONCURRENT_REQUESTS_PER_IP` is non-zero, delays are enforced
 per ip address instead of per domain.
@@ -615,6 +604,32 @@ If you want to disable it set to 0.
 
     This feature needs Twisted >= 11.1.
 
+.. setting:: DOWNLOAD_FAIL_ON_DATALOSS
+
+DOWNLOAD_FAIL_ON_DATALOSS
+-------------------------
+
+Default: ``True``
+
+Whether or not to fail on broken responses, that is, declared
+``Content-Length`` does not match content sent by the server or chunked
+response was not properly finish. If ``True``, these responses raise a
+``ResponseFailed([_DataLoss])`` error. If ``False``, these responses
+are passed through and the flag ``dataloss`` is added to the response, i.e.:
+``'dataloss' in response.flags`` is ``True``.
+
+Optionally, this can be set per-request basis by using the
+:reqmeta:`download_fail_on_dataloss` Request.meta key to ``False``.
+
+.. note::
+
+  A broken response, or data loss error, may happen under several
+  circumstances, from server misconfiguration to network errors to data
+  corruption. It is up to the user to decide if it makes sense to process
+  broken responses considering they may contain partial or incomplete content.
+  If :setting:`RETRY_ENABLED` is ``True`` and this setting is set to ``True``,
+  the ``ResponseFailed([_DataLoss])`` failure will be retried as usual.
+
 .. setting:: DUPEFILTER_CLASS
 
 DUPEFILTER_CLASS
@@ -631,6 +646,13 @@ override its ``request_fingerprint`` method. This method should accept
 scrapy :class:`~scrapy.http.Request` object and return its fingerprint
 (a string).
 
+You can disable filtering of duplicate requests by setting
+:setting:`DUPEFILTER_CLASS` to ``'scrapy.dupefilters.BaseDupeFilter'``.
+Be very careful about this however, because you can get into crawling loops.
+It's usually a better idea to set the ``dont_filter`` parameter to
+``True`` on the specific :class:`~scrapy.http.Request` that should not be
+filtered.
+
 .. setting:: DUPEFILTER_DEBUG
 
 DUPEFILTER_DEBUG
@@ -646,11 +668,11 @@ Setting :setting:`DUPEFILTER_DEBUG` to ``True`` will make it log all duplicate r
 EDITOR
 ------
 
-Default: `depends on the environment`
+Default: ``vi`` (on Unix systems) or the IDLE editor (on Windows)
 
-The editor to use for editing spiders with the :command:`edit` command. It
-defaults to the ``EDITOR`` environment variable, if set. Otherwise, it defaults
-to ``vi`` (on Unix systems) or the IDLE editor (on Windows).
+The editor to use for editing spiders with the :command:`edit` command.
+Additionally, if the ``EDITOR`` environment variable is set, the :command:`edit`
+command will prefer it over the default setting.
 
 .. setting:: EXTENSIONS
 
@@ -688,14 +710,51 @@ For more information See the :ref:`extensions user guide  <topics-extensions>`
 and the :ref:`list of available extensions <topics-extensions-ref>`.
 
 
-.. setting:: FILES_STORE_S3_ACL
+.. setting:: FEED_TEMPDIR
 
-FILES_STORE_S3_ACL
-------------------
+FEED_TEMPDIR
+------------
 
-Default: ``'private'``
+The Feed Temp dir allows you to set a custom folder to save crawler
+temporary files before uploading with :ref:`FTP feed storage <topics-feed-storage-ftp>` and
+:ref:`Amazon S3 <topics-feed-storage-s3>`.
 
-S3-specific access control policy (ACL) for S3 files store.
+.. setting:: FTP_PASSIVE_MODE
+
+FTP_PASSIVE_MODE
+----------------
+
+Default: ``True``
+
+Whether or not to use passive mode when initiating FTP transfers.
+
+.. setting:: FTP_PASSWORD
+
+FTP_PASSWORD
+------------
+
+Default: ``"guest"``
+
+The password to use for FTP connections when there is no ``"ftp_password"``
+in ``Request`` meta.
+
+.. note::
+    Paraphrasing `RFC 1635`_, although it is common to use either the password
+    "guest" or one's e-mail address for anonymous FTP,
+    some FTP servers explicitly ask for the user's e-mail address
+    and will not allow login with the "guest" password.
+
+.. _RFC 1635: https://tools.ietf.org/html/rfc1635
+
+.. setting:: FTP_USER
+
+FTP_USER
+--------
+
+Default: ``"anonymous"``
+
+The username to use for FTP connections when there is no ``"ftp_user"``
+in ``Request`` meta.
 
 .. setting:: ITEM_PIPELINES
 
@@ -798,6 +857,16 @@ If ``True``, all standard output (and error) of your process will be redirected
 to the log. For example if you ``print 'hello'`` it will appear in the Scrapy
 log.
 
+.. setting:: LOG_SHORT_NAMES
+
+LOG_SHORT_NAMES
+---------------
+
+Default: ``False``
+
+If ``True``, the logs will just contain the root path. If it is set to ``False``
+then it displays the component responsible for the log output
+
 .. setting:: MEMDEBUG_ENABLED
 
 MEMDEBUG_ENABLED
@@ -827,13 +896,15 @@ Example::
 MEMUSAGE_ENABLED
 ----------------
 
-Default: ``False``
+Default: ``True``
 
 Scope: ``scrapy.extensions.memusage``
 
-Whether to enable the memory usage extension that will shutdown the Scrapy
-process when it exceeds a memory limit, and also notify by email when that
-happened.
+Whether to enable the memory usage extension. This extension keeps track of
+a peak memory used by the process (it writes it to stats). It can also
+optionally shutdown the Scrapy process when it exceeds a memory limit
+(see :setting:`MEMUSAGE_LIMIT_MB`), and notify by email when that happened
+(see :setting:`MEMUSAGE_NOTIFY_MAIL`).
 
 See :ref:`topics-extensions-ref-memusage`.
 
@@ -888,19 +959,6 @@ Example::
 
 See :ref:`topics-extensions-ref-memusage`.
 
-.. setting:: MEMUSAGE_REPORT
-
-MEMUSAGE_REPORT
----------------
-
-Default: ``False``
-
-Scope: ``scrapy.extensions.memusage``
-
-Whether to send a memory usage report after each spider has been closed.
-
-See :ref:`topics-extensions-ref-memusage`.
-
 .. setting:: MEMUSAGE_WARNING_MB
 
 MEMUSAGE_WARNING_MB
@@ -933,8 +991,7 @@ RANDOMIZE_DOWNLOAD_DELAY
 
 Default: ``True``
 
-If enabled, Scrapy will wait a random amount of time (between 0.5 and 1.5
-* :setting:`DOWNLOAD_DELAY`) while fetching requests from the same
+If enabled, Scrapy will wait a random amount of time (between 0.5 * :setting:`DOWNLOAD_DELAY` and 1.5 * :setting:`DOWNLOAD_DELAY`) while fetching requests from the same
 website.
 
 This randomization decreases the chance of the crawler being detected (and
@@ -1025,6 +1082,53 @@ Default: ``'scrapy.core.scheduler.Scheduler'``
 
 The scheduler to use for crawling.
 
+.. setting:: SCHEDULER_DEBUG
+
+SCHEDULER_DEBUG
+---------------
+
+Default: ``False``
+
+Setting to ``True`` will log debug information about the requests scheduler.
+This currently logs (only once) if the requests cannot be serialized to disk.
+Stats counter (``scheduler/unserializable``) tracks the number of times this happens.
+
+Example entry in logs::
+
+    1956-01-31 00:00:00+0800 [scrapy.core.scheduler] ERROR: Unable to serialize request:
+    <GET http://example.com> - reason: cannot serialize <Request at 0x9a7c7ec>
+    (type Request)> - no more unserializable requests will be logged
+    (see 'scheduler/unserializable' stats counter)
+
+
+.. setting:: SCHEDULER_DISK_QUEUE
+
+SCHEDULER_DISK_QUEUE
+--------------------
+
+Default: ``'scrapy.squeues.PickleLifoDiskQueue'``
+
+Type of disk queue that will be used by scheduler. Other available types are
+``scrapy.squeues.PickleFifoDiskQueue``, ``scrapy.squeues.MarshalFifoDiskQueue``,
+``scrapy.squeues.MarshalLifoDiskQueue``.
+
+.. setting:: SCHEDULER_MEMORY_QUEUE
+
+SCHEDULER_MEMORY_QUEUE
+----------------------
+Default: ``'scrapy.squeues.LifoMemoryQueue'``
+
+Type of in-memory queue used by scheduler. Other available type is:
+``scrapy.squeues.FifoMemoryQueue``.
+
+.. setting:: SCHEDULER_PRIORITY_QUEUE
+
+SCHEDULER_PRIORITY_QUEUE
+------------------------
+Default: ``'queuelib.PriorityQueue'``
+
+Type of priority queue used by scheduler.
+
 .. setting:: SPIDER_CONTRACTS
 
 SPIDER_CONTRACTS
@@ -1069,6 +1173,29 @@ Default: ``'scrapy.spiderloader.SpiderLoader'``
 
 The class that will be used for loading spiders, which must implement the
 :ref:`topics-api-spiderloader`.
+
+.. setting:: SPIDER_LOADER_WARN_ONLY
+
+SPIDER_LOADER_WARN_ONLY
+-----------------------
+
+.. versionadded:: 1.3.3
+
+Default: ``False``
+
+By default, when scrapy tries to import spider classes from :setting:`SPIDER_MODULES`,
+it will fail loudly if there is any ``ImportError`` exception.
+But you can choose to silence this exception and turn it into a simple
+warning by setting ``SPIDER_LOADER_WARN_ONLY = True``.
+
+.. note::
+    Some :ref:`scrapy commands <topics-commands>` run with this setting to ``True``
+    already (i.e. they will only issue a warning and will not fail)
+    since they do not actually need to load spider classes to work:
+    :command:`scrapy runspider <runspider>`,
+    :command:`scrapy settings <settings>`,
+    :command:`scrapy startproject <startproject>`,
+    :command:`scrapy version <version>`.
 
 .. setting:: SPIDER_MIDDLEWARES
 

@@ -1,3 +1,5 @@
+:orphan:
+
 ======================================
 Scrapy documentation quick start guide
 ======================================
@@ -9,11 +11,11 @@ Setup the environment
 ---------------------
 
 To compile the documentation you need Sphinx Python library. To install it
-and all its dependencies run
+and all its dependencies run the following command from this dir
 
 ::
 
-    pip install 'Sphinx >= 1.3'
+    pip install -r requirements.txt
 
 
 Compile the documentation

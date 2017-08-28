@@ -22,12 +22,12 @@ class RedirectMiddlewareTest(unittest.TestCase):
         req2 = self.mw.process_response(req, rsp, self.spider)
         assert req2.priority > req.priority
 
-    def test_redirect_301(self):
-        def _test(method):
-            url = 'http://www.example.com/301'
+    def test_redirect_3xx_permanent(self):
+        def _test(method, status=301):
+            url = 'http://www.example.com/{}'.format(status)
             url2 = 'http://www.example.com/redirected'
             req = Request(url, method=method)
-            rsp = Response(url, headers={'Location': url2}, status=301)
+            rsp = Response(url, headers={'Location': url2}, status=status)
 
             req2 = self.mw.process_response(req, rsp, self.spider)
             assert isinstance(req2, Request)
@@ -41,6 +41,14 @@ class RedirectMiddlewareTest(unittest.TestCase):
         _test('GET')
         _test('POST')
         _test('HEAD')
+
+        _test('GET', status=307)
+        _test('POST', status=307)
+        _test('HEAD', status=307)
+
+        _test('GET', status=308)
+        _test('POST', status=308)
+        _test('HEAD', status=308)
 
     def test_dont_redirect(self):
         url = 'http://www.example.com/301'
@@ -157,16 +165,16 @@ class RedirectMiddlewareTest(unittest.TestCase):
         latin1_location = u'/ação'.encode('latin1')  # HTTP historically supports latin1
         resp = Response('http://scrapytest.org/first', headers={'Location': latin1_location}, status=302)
         req_result = self.mw.process_response(req, resp, self.spider)
-        perc_encoded_utf8_url = 'http://scrapytest.org/a%C3%A7%C3%A3o'
-        self.assertEquals(perc_encoded_utf8_url, req_result.url)
+        perc_encoded_utf8_url = 'http://scrapytest.org/a%E7%E3o'
+        self.assertEqual(perc_encoded_utf8_url, req_result.url)
 
-    def test_location_with_wrong_encoding(self):
+    def test_utf8_location(self):
         req = Request('http://scrapytest.org/first')
-        utf8_location = u'/ação'  # header with wrong encoding (utf-8)
+        utf8_location = u'/ação'.encode('utf-8')  # header using UTF-8 encoding
         resp = Response('http://scrapytest.org/first', headers={'Location': utf8_location}, status=302)
         req_result = self.mw.process_response(req, resp, self.spider)
-        perc_encoded_utf8_url = 'http://scrapytest.org/a%C3%83%C2%A7%C3%83%C2%A3o'
-        self.assertEquals(perc_encoded_utf8_url, req_result.url)
+        perc_encoded_utf8_url = 'http://scrapytest.org/a%C3%A7%C3%A3o'
+        self.assertEqual(perc_encoded_utf8_url, req_result.url)
 
 
 class MetaRefreshMiddlewareTest(unittest.TestCase):

@@ -140,7 +140,7 @@ output examples, which assume you're exporting these two items::
 BaseItemExporter
 ----------------
 
-.. class:: BaseItemExporter(fields_to_export=None, export_empty_fields=False, encoding='utf-8')
+.. class:: BaseItemExporter(fields_to_export=None, export_empty_fields=False, encoding='utf-8', indent=0)
 
    This is the (abstract) base class for all Item Exporters. It provides
    support for common features used by all (concrete) Item Exporters, such as
@@ -149,7 +149,7 @@ BaseItemExporter
 
    These features can be configured through the constructor arguments which
    populate their respective instance attributes: :attr:`fields_to_export`,
-   :attr:`export_empty_fields`, :attr:`encoding`.
+   :attr:`export_empty_fields`, :attr:`encoding`, :attr:`indent`.
 
    .. method:: export_item(item)
 
@@ -216,6 +216,15 @@ BaseItemExporter
       encoding). Other value types are passed unchanged to the specific
       serialization library.
 
+   .. attribute:: indent
+
+      Amount of spaces used to indent the output on each level. Defaults to ``0``.
+
+      * ``indent=None`` selects the most compact representation,
+        all items in the same line with no indentation
+      * ``indent<=0`` each item on its own line, no indentation
+      * ``indent>0`` each item on its own line, indented with the provided numeric value
+
 .. highlight:: none
 
 XmlItemExporter
@@ -225,7 +234,8 @@ XmlItemExporter
 
    Exports Items in XML format to the specified file object.
 
-   :param file: the file-like object to use for exporting the data.
+   :param file: the file-like object to use for exporting the data. Its ``write`` method should
+                accept ``bytes`` (a disk file opened in binary mode, a ``io.BytesIO`` object, etc)
 
    :param root_element: The name of root element in the exported XML.
    :type root_element: str
@@ -281,7 +291,8 @@ CsvItemExporter
    CSV columns and their order. The :attr:`export_empty_fields` attribute has
    no effect on this exporter.
 
-   :param file: the file-like object to use for exporting the data.
+   :param file: the file-like object to use for exporting the data. Its ``write`` method should
+                accept ``bytes`` (a disk file opened in binary mode, a ``io.BytesIO`` object, etc)
 
    :param include_headers_line: If enabled, makes the exporter output a header
       line with the field names taken from
@@ -312,7 +323,8 @@ PickleItemExporter
 
    Exports Items in pickle format to the given file-like object.
 
-   :param file: the file-like object to use for exporting the data.
+   :param file: the file-like object to use for exporting the data. Its ``write`` method should
+                accept ``bytes`` (a disk file opened in binary mode, a ``io.BytesIO`` object, etc)
 
    :param protocol: The pickle protocol to use.
    :type protocol: int
@@ -333,7 +345,8 @@ PprintItemExporter
 
    Exports Items in pretty print format to the specified file object.
 
-   :param file: the file-like object to use for exporting the data.
+   :param file: the file-like object to use for exporting the data. Its ``write`` method should
+                accept ``bytes`` (a disk file opened in binary mode, a ``io.BytesIO`` object, etc)
 
    The additional keyword arguments of this constructor are passed to the
    :class:`BaseItemExporter` constructor.
@@ -356,7 +369,8 @@ JsonItemExporter
    arguments to the `JSONEncoder`_ constructor, so you can use any
    `JSONEncoder`_ constructor argument to customize this exporter.
 
-   :param file: the file-like object to use for exporting the data.
+   :param file: the file-like object to use for exporting the data. Its ``write`` method should
+                accept ``bytes`` (a disk file opened in binary mode, a ``io.BytesIO`` object, etc)
 
    A typical output of this exporter would be::
 
@@ -386,7 +400,8 @@ JsonLinesItemExporter
    the `JSONEncoder`_ constructor, so you can use any `JSONEncoder`_
    constructor argument to customize this exporter.
 
-   :param file: the file-like object to use for exporting the data.
+   :param file: the file-like object to use for exporting the data. Its ``write`` method should
+                accept ``bytes`` (a disk file opened in binary mode, a ``io.BytesIO`` object, etc)
 
    A typical output of this exporter would be::
 

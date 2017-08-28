@@ -3,6 +3,8 @@
 Frequently Asked Questions
 ==========================
 
+.. _faq-scrapy-bs-cmp:
+
 How does Scrapy compare to BeautifulSoup or lxml?
 -------------------------------------------------
 
@@ -24,6 +26,44 @@ comparing `jinja2`_ to `Django`_.
 .. _jinja2: http://jinja.pocoo.org/
 .. _Django: https://www.djangoproject.com/
 
+Can I use Scrapy with BeautifulSoup?
+------------------------------------
+
+Yes, you can.
+As mentioned :ref:`above <faq-scrapy-bs-cmp>`, `BeautifulSoup`_ can be used
+for parsing HTML responses in Scrapy callbacks.
+You just have to feed the response's body into a ``BeautifulSoup`` object
+and extract whatever data you need from it.
+
+Here's an example spider using BeautifulSoup API, with ``lxml`` as the HTML parser::
+
+
+    from bs4 import BeautifulSoup
+    import scrapy
+
+
+    class ExampleSpider(scrapy.Spider):
+        name = "example"
+        allowed_domains = ["example.com"]
+        start_urls = (
+            'http://www.example.com/',
+        )
+
+        def parse(self, response):
+            # use lxml to get decent HTML parsing speed
+            soup = BeautifulSoup(response.text, 'lxml')
+            yield {
+                "url": response.url,
+                "title": soup.h1.string
+            }
+
+.. note::
+
+    ``BeautifulSoup`` supports several HTML/XML parsers.
+    See `BeautifulSoup's official documentation`_ on which ones are available.
+
+.. _BeautifulSoup's official documentation: https://www.crummy.com/software/BeautifulSoup/bs4/doc/#specifying-the-parser-to-use
+
 .. _faq-python-versions:
 
 What Python versions does Scrapy support?
@@ -32,6 +72,10 @@ What Python versions does Scrapy support?
 Scrapy is supported under Python 2.7 and Python 3.3+.
 Python 2.6 support was dropped starting at Scrapy 0.20.
 Python 3 support was added in Scrapy 1.1.
+
+.. note::
+    For Python 3 support on Windows, it is recommended to use
+    Anaconda/Miniconda as :ref:`outlined in the installation guide <intro-install-windows>`.
 
 Did Scrapy "steal" X from Django?
 ---------------------------------
@@ -274,6 +318,6 @@ I'm scraping a XML document and my XPath selector doesn't return any items
 You may need to remove namespaces. See :ref:`removing-namespaces`.
 
 .. _user agents: https://en.wikipedia.org/wiki/User_agent
-.. _LIFO: https://en.wikipedia.org/wiki/LIFO
+.. _LIFO: https://en.wikipedia.org/wiki/Stack_(abstract_data_type)
 .. _DFO order: https://en.wikipedia.org/wiki/Depth-first_search
 .. _BFO order: https://en.wikipedia.org/wiki/Breadth-first_search

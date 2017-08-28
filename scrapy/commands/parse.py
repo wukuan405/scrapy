@@ -121,8 +121,8 @@ class Command(ScrapyCommand):
     def get_callback_from_rules(self, spider, response):
         if getattr(spider, 'rules', None):
             for rule in spider.rules:
-                if rule.link_extractor.matches(response.url) and rule.callback:
-                    return rule.callback
+                if rule.link_extractor.matches(response.url):
+                    return rule.callback or "parse"
         else:
             logger.error('No CrawlSpider rules found in spider %(spider)r, '
                          'please specify a callback to use for parsing',
@@ -142,7 +142,8 @@ class Command(ScrapyCommand):
                 logger.error('Unable to find spider for: %(url)s',
                              {'url': url})
 
-        request = Request(url, opts.callback)
+        # Request requires callback argument as callable or None, not string
+        request = Request(url, None)
         _start_requests = lambda s: [self.prepare_request(s, request, opts)]
         self.spidercls.start_requests = _start_requests
 
@@ -164,8 +165,15 @@ class Command(ScrapyCommand):
             # determine real callback
             cb = response.meta['_callback']
             if not cb:
-                if opts.rules and self.first_response == response:
+                if opts.callback:
+                    cb = opts.callback
+                elif opts.rules and self.first_response == response:
                     cb = self.get_callback_from_rules(spider, response)
+
+                    if not cb:
+                        logger.error('Cannot find a rule that matches %(url)r in spider: %(spider)s',
+                                 {'url': response.url, 'spider': spider.name})
+                        return
                 else:
                     cb = 'parse'
 
@@ -175,7 +183,7 @@ class Command(ScrapyCommand):
                     cb = cb_method
                 else:
                     logger.error('Cannot find callback %(callback)r in spider: %(spider)s',
-                                 {'callback': callback, 'spider': spider.name})
+                                 {'callback': cb, 'spider': spider.name})
                     return
 
             # parse items and requests

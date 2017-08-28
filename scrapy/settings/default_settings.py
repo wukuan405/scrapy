@@ -13,7 +13,6 @@ Scrapy developers, if you add a setting here remember to:
 
 """
 
-import os
 import sys
 from importlib import import_module
 from os.path import join, abspath, dirname
@@ -67,6 +66,7 @@ DOWNLOAD_DELAY = 0
 
 DOWNLOAD_HANDLERS = {}
 DOWNLOAD_HANDLERS_BASE = {
+    'data': 'scrapy.core.downloader.handlers.datauri.DataURIDownloadHandler',
     'file': 'scrapy.core.downloader.handlers.file.FileDownloadHandler',
     'http': 'scrapy.core.downloader.handlers.http.HTTPDownloadHandler',
     'https': 'scrapy.core.downloader.handlers.http.HTTPDownloadHandler',
@@ -78,6 +78,8 @@ DOWNLOAD_TIMEOUT = 180      # 3mins
 
 DOWNLOAD_MAXSIZE = 1024*1024*1024   # 1024m
 DOWNLOAD_WARNSIZE = 32*1024*1024    # 32m
+
+DOWNLOAD_FAIL_ON_DATALOSS = True
 
 DOWNLOADER = 'scrapy.core.downloader.Downloader'
 
@@ -93,16 +95,15 @@ DOWNLOADER_MIDDLEWARES_BASE = {
     'scrapy.downloadermiddlewares.robotstxt.RobotsTxtMiddleware': 100,
     'scrapy.downloadermiddlewares.httpauth.HttpAuthMiddleware': 300,
     'scrapy.downloadermiddlewares.downloadtimeout.DownloadTimeoutMiddleware': 350,
-    'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': 400,
-    'scrapy.downloadermiddlewares.retry.RetryMiddleware': 500,
-    'scrapy.downloadermiddlewares.defaultheaders.DefaultHeadersMiddleware': 550,
+    'scrapy.downloadermiddlewares.defaultheaders.DefaultHeadersMiddleware': 400,
+    'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': 500,
+    'scrapy.downloadermiddlewares.retry.RetryMiddleware': 550,
     'scrapy.downloadermiddlewares.ajaxcrawl.AjaxCrawlMiddleware': 560,
     'scrapy.downloadermiddlewares.redirect.MetaRefreshMiddleware': 580,
     'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware': 590,
     'scrapy.downloadermiddlewares.redirect.RedirectMiddleware': 600,
     'scrapy.downloadermiddlewares.cookies.CookiesMiddleware': 700,
     'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware': 750,
-    'scrapy.downloadermiddlewares.chunked.ChunkedTransferMiddleware': 830,
     'scrapy.downloadermiddlewares.stats.DownloaderStats': 850,
     'scrapy.downloadermiddlewares.httpcache.HttpCacheMiddleware': 900,
     # Downloader side
@@ -112,13 +113,9 @@ DOWNLOADER_STATS = True
 
 DUPEFILTER_CLASS = 'scrapy.dupefilters.RFPDupeFilter'
 
-try:
-    EDITOR = os.environ['EDITOR']
-except KeyError:
-    if sys.platform == 'win32':
-        EDITOR = '%s -m idlelib.idle'
-    else:
-        EDITOR = 'vi'
+EDITOR = 'vi'
+if sys.platform == 'win32':
+    EDITOR = '%s -m idlelib.idle'
 
 EXTENSIONS = {}
 
@@ -139,6 +136,7 @@ FEED_URI = None
 FEED_URI_PARAMS = None  # a function to extend uri arguments
 FEED_FORMAT = 'jsonlines'
 FEED_STORE_EMPTY = False
+FEED_EXPORT_ENCODING = None
 FEED_EXPORT_FIELDS = None
 FEED_STORAGES = {}
 FEED_STORAGES_BASE = {
@@ -158,11 +156,13 @@ FEED_EXPORTERS_BASE = {
     'marshal': 'scrapy.exporters.MarshalItemExporter',
     'pickle': 'scrapy.exporters.PickleItemExporter',
 }
+FEED_EXPORT_INDENT = 0
 
 FILES_STORE_S3_ACL = 'private'
-FILES_EXPIRES = 90
-FILES_URLS_FIELD = 'file_urls'
-FILES_RESULT_FIELD = 'files'
+
+FTP_USER = 'anonymous'
+FTP_PASSWORD = 'guest'
+FTP_PASSIVE_MODE = True
 
 HTTPCACHE_ENABLED = False
 HTTPCACHE_DIR = 'httpcache'
@@ -177,14 +177,10 @@ HTTPCACHE_DBM_MODULE = 'anydbm' if six.PY2 else 'dbm'
 HTTPCACHE_POLICY = 'scrapy.extensions.httpcache.DummyPolicy'
 HTTPCACHE_GZIP = False
 
+HTTPPROXY_ENABLED = True
 HTTPPROXY_AUTH_ENCODING = 'latin-1'
 
-IMAGES_MIN_WIDTH = 0
-IMAGES_MIN_HEIGHT = 0
-IMAGES_EXPIRES = 90
-IMAGES_THUMBS = {}
-IMAGES_URLS_FIELD = 'image_urls'
-IMAGES_RESULT_FIELD = 'images'
+IMAGES_STORE_S3_ACL = 'private'
 
 ITEM_PROCESSOR = 'scrapy.pipelines.ItemPipelineManager'
 
@@ -199,8 +195,9 @@ LOG_DATEFORMAT = '%Y-%m-%d %H:%M:%S'
 LOG_STDOUT = False
 LOG_LEVEL = 'DEBUG'
 LOG_FILE = None
+LOG_SHORT_NAMES = False
 
-LOG_UNSERIALIZABLE_REQUESTS = False
+SCHEDULER_DEBUG = False
 
 LOGSTATS_INTERVAL = 60.0
 
@@ -214,10 +211,9 @@ MEMDEBUG_ENABLED = False        # enable memory debugging
 MEMDEBUG_NOTIFY = []            # send memory debugging report by mail at engine shutdown
 
 MEMUSAGE_CHECK_INTERVAL_SECONDS = 60.0
-MEMUSAGE_ENABLED = False
+MEMUSAGE_ENABLED = True
 MEMUSAGE_LIMIT_MB = 0
 MEMUSAGE_NOTIFY_MAIL = []
-MEMUSAGE_REPORT = False
 MEMUSAGE_WARNING_MB = 0
 
 METAREFRESH_ENABLED = True
@@ -234,10 +230,11 @@ REDIRECT_MAX_TIMES = 20  # uses Firefox default setting
 REDIRECT_PRIORITY_ADJUST = +2
 
 REFERER_ENABLED = True
+REFERRER_POLICY = 'scrapy.spidermiddlewares.referer.DefaultReferrerPolicy'
 
 RETRY_ENABLED = True
 RETRY_TIMES = 2  # initial response + 2 retries = 3 requests
-RETRY_HTTP_CODES = [500, 502, 503, 504, 408]
+RETRY_HTTP_CODES = [500, 502, 503, 504, 522, 524, 408]
 RETRY_PRIORITY_ADJUST = -1
 
 ROBOTSTXT_OBEY = False
@@ -248,6 +245,7 @@ SCHEDULER_MEMORY_QUEUE = 'scrapy.squeues.LifoMemoryQueue'
 SCHEDULER_PRIORITY_QUEUE = 'queuelib.PriorityQueue'
 
 SPIDER_LOADER_CLASS = 'scrapy.spiderloader.SpiderLoader'
+SPIDER_LOADER_WARN_ONLY = False
 
 SPIDER_MIDDLEWARES = {}
 

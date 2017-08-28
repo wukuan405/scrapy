@@ -1,19 +1,19 @@
 from OpenSSL import SSL
 from twisted.internet.ssl import ClientContextFactory
 
-try:
+from scrapy import twisted_version
+
+if twisted_version >= (14, 0, 0):
 
     from zope.interface.declarations import implementer
 
-    # the following should be available from Twisted 14.0.0
     from twisted.internet.ssl import (optionsForClientTLS,
                                       CertificateOptions,
                                       platformTrust)
-
     from twisted.web.client import BrowserLikePolicyForHTTPS
     from twisted.web.iweb import IPolicyForHTTPS
 
-    from scrapy.core.downloader.tls import ScrapyClientTLSOptions
+    from scrapy.core.downloader.tls import ScrapyClientTLSOptions, DEFAULT_CIPHERS
 
 
     @implementer(IPolicyForHTTPS)
@@ -46,7 +46,9 @@ try:
             #   not calling super(..., self).__init__
             return CertificateOptions(verify=False,
                         method=getattr(self, 'method',
-                                       getattr(self, '_ssl_method', None)))
+                                       getattr(self, '_ssl_method', None)),
+                        fixBrokenPeers=True,
+                        acceptableCiphers=DEFAULT_CIPHERS)
 
         # kept for old-style HTTP/1.0 downloader context twisted calls,
         # e.g. connectSSL()
@@ -84,7 +86,7 @@ try:
                                             'method': self._ssl_method,
                                        })
 
-except ImportError:
+else:
 
     class ScrapyClientContextFactory(ClientContextFactory):
         "A SSL context factory which is more permissive against SSL bugs."

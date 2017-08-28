@@ -18,7 +18,7 @@ class Request(object_ref):
 
     def __init__(self, url, callback=None, method='GET', headers=None, body=None,
                  cookies=None, meta=None, encoding='utf-8', priority=0,
-                 dont_filter=False, errback=None):
+                 dont_filter=False, errback=None, flags=None):
 
         self._encoding = encoding  # this one has to be set first
         self.method = str(method).upper()
@@ -27,6 +27,10 @@ class Request(object_ref):
         assert isinstance(priority, int), "Request priority not an integer: %r" % priority
         self.priority = priority
 
+        if callback is not None and not callable(callback):
+            raise TypeError('callback must be a callable, got %s' % type(callback).__name__)
+        if errback is not None and not callable(errback):
+            raise TypeError('errback must be a callable, got %s' % type(errback).__name__)
         assert callback or not errback, "Cannot use errback without a callback"
         self.callback = callback
         self.errback = errback
@@ -36,6 +40,7 @@ class Request(object_ref):
         self.dont_filter = dont_filter
 
         self._meta = dict(meta) if meta else None
+        self.flags = [] if flags is None else list(flags)
 
     @property
     def meta(self):

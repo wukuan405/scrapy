@@ -207,7 +207,9 @@ These are the settings used for configuring the feed exports:
  * :setting:`FEED_STORAGES`
  * :setting:`FEED_EXPORTERS`
  * :setting:`FEED_STORE_EMPTY`
+ * :setting:`FEED_EXPORT_ENCODING`
  * :setting:`FEED_EXPORT_FIELDS`
+ * :setting:`FEED_EXPORT_INDENT`
 
 .. currentmodule:: scrapy.extensions.feedexport
 
@@ -231,6 +233,20 @@ FEED_FORMAT
 The serialization format to be used for the feed. See
 :ref:`topics-feed-format` for possible values.
 
+.. setting:: FEED_EXPORT_ENCODING
+
+FEED_EXPORT_ENCODING
+--------------------
+
+Default: ``None``
+
+The encoding to be used for the feed.
+
+If unset or set to ``None`` (default) it uses UTF-8 for everything except JSON output,
+which uses safe numeric encoding (``\uXXXX`` sequences) for historic reasons.
+
+Use ``utf-8`` if you want UTF-8 for JSON too.
+
 .. setting:: FEED_EXPORT_FIELDS
 
 FEED_EXPORT_FIELDS
@@ -251,6 +267,22 @@ If an exporter requires a fixed set of fields (this is the case for
 is empty or None, then Scrapy tries to infer field names from the
 exported data - currently it uses field names from the first item.
 
+.. setting:: FEED_EXPORT_INDENT
+
+FEED_EXPORT_INDENT
+------------------
+
+Default: ``0``
+
+Amount of spaces used to indent the output on each level. If ``FEED_EXPORT_INDENT``
+is a non-negative integer, then array elements and object members will be pretty-printed
+with that indent level. An indent level of ``0`` (the default), or negative,
+will put each item on a new line. ``None`` selects the most compact representation.
+
+Currently implemented only by :class:`~scrapy.exporters.JsonItemExporter`
+and :class:`~scrapy.exporters.XmlItemExporter`, i.e. when you are exporting
+to ``.json`` or ``.xml``.
+
 .. setting:: FEED_STORE_EMPTY
 
 FEED_STORE_EMPTY
@@ -265,7 +297,7 @@ Whether to export empty feeds (ie. feeds with no items).
 FEED_STORAGES
 -------------
 
-Default:: ``{}``
+Default: ``{}``
 
 A dict containing additional feed storage backends supported by your project.
 The keys are URI schemes and the values are paths to storage classes.
@@ -299,7 +331,7 @@ can disable any of these backends by assigning ``None`` to their URI scheme in
 FEED_EXPORTERS
 --------------
 
-Default:: ``{}``
+Default: ``{}``
 
 A dict containing additional exporters supported by your project. The keys are
 serialization formats and the values are paths to :ref:`Item exporter

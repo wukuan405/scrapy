@@ -1,6 +1,8 @@
 import logging
 from OpenSSL import SSL
 
+from scrapy import twisted_version
+
 
 logger = logging.getLogger(__name__)
 
@@ -18,35 +20,60 @@ openssl_methods = {
     METHOD_TLSv12: getattr(SSL, 'TLSv1_2_METHOD', 6),   # TLS 1.2 only
 }
 
-# ClientTLSOptions requires a recent-enough version of Twisted
-try:
+if twisted_version >= (14, 0, 0):
+    # ClientTLSOptions requires a recent-enough version of Twisted.
+    # Not having ScrapyClientTLSOptions should not matter for older
+    # Twisted versions because it is not used in the fallback
+    # ScrapyClientContextFactory.
 
     # taken from twisted/twisted/internet/_sslverify.py
+
     try:
+        # XXX: this try-except is not needed in Twisted 17.0.0+ because
+        # it requires pyOpenSSL 0.16+.
         from OpenSSL.SSL import SSL_CB_HANDSHAKE_DONE, SSL_CB_HANDSHAKE_START
     except ImportError:
         SSL_CB_HANDSHAKE_START = 0x10
         SSL_CB_HANDSHAKE_DONE = 0x20
 
+    from twisted.internet.ssl import AcceptableCiphers
     from twisted.internet._sslverify import (ClientTLSOptions,
-                                             _maybeSetHostNameIndication,
                                              verifyHostname,
                                              VerificationError)
 
+    if twisted_version < (17, 0, 0):
+        from twisted.internet._sslverify import _maybeSetHostNameIndication
+        set_tlsext_host_name = _maybeSetHostNameIndication
+    else:
+        def set_tlsext_host_name(connection, hostNameBytes):
+            connection.set_tlsext_host_name(hostNameBytes)
+
+
     class ScrapyClientTLSOptions(ClientTLSOptions):
-        # same as Twisted's ClientTLSOptions,
-        # except that VerificationError is caught
-        # and doesn't close the connection
+        """
+        SSL Client connection creator ignoring certificate verification errors
+        (for genuinely invalid certificates or bugs in verification code).
+
+        Same as Twisted's private _sslverify.ClientTLSOptions,
+        except that VerificationError and ValueError exceptions are caught,
+        so that the connection is not closed, only logging warnings.
+        """
+
         def _identityVerifyingInfoCallback(self, connection, where, ret):
             if where & SSL_CB_HANDSHAKE_START:
-                _maybeSetHostNameIndication(connection, self._hostnameBytes)
+                set_tlsext_host_name(connection, self._hostnameBytes)
             elif where & SSL_CB_HANDSHAKE_DONE:
                 try:
                     verifyHostname(connection, self._hostnameASCII)
                 except VerificationError as e:
-                    logger.warning(e)
+                    logger.warning(
+                        'Remote certificate is not valid for hostname "{}"; {}'.format(
+                            self._hostnameASCII, e))
 
-except ImportError:
-    # ImportError should not matter for older Twisted versions
-    # as the above is not used in the fallback ScrapyClientContextFactory
-    pass
+                except ValueError as e:
+                    logger.warning(
+                        'Ignoring error while verifying certificate '
+                        'from host "{}" (exception: {})'.format(
+                            self._hostnameASCII, repr(e)))
+
+    DEFAULT_CIPHERS = AcceptableCiphers.fromOpenSSLCipherString('DEFAULT')

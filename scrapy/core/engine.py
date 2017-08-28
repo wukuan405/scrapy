@@ -48,7 +48,8 @@ class Slot(object):
         if self.closing and not self.inprogress:
             if self.nextcall:
                 self.nextcall.cancel()
-                self.heartbeat.stop()
+                if self.heartbeat.running:
+                    self.heartbeat.stop()
             self.closing.callback(None)
 
 
@@ -217,10 +218,8 @@ class ExecutionEngine(object):
                                         request=request, spider=spider)
 
     def download(self, request, spider):
-        slot = self.slot
-        slot.add_request(request)
         d = self._download(request, spider)
-        d.addBoth(self._downloaded, slot, request, spider)
+        d.addBoth(self._downloaded, self.slot, request, spider)
         return d
 
     def _downloaded(self, response, slot, request, spider):

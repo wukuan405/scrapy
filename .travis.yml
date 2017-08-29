@@ -3,6 +3,7 @@ sudo: false
 branches:
   only:
     - master
+    - gh-pages
     - /^\d\.\d+$/
     - /^\d\.\d+\.\d+(rc\d+|\.dev\d+)?$/
 matrix:

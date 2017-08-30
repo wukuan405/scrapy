@@ -1,5 +1,5 @@
 ======
-Scrapy try
+Scrapy
 ======
 
 .. image:: https://img.shields.io/pypi/v/Scrapy.svg
